@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  VENDOR
+  SUPPORT
+  COMPLIANCE
+  FINANCE
+  TRADING_ADMIN
+  P2P_ADMIN
+  AUDITOR
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  FROZEN
+}
+
+enum KycStatus {
+  NOT_STARTED
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ADDITIONAL_INFO
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+  STOP
+  STOP_LIMIT
+  TAKE_PROFIT
+  TAKE_PROFIT_LIMIT
+}
+
+enum OrderStatus {
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum P2PStatus {
+  CREATED
+  ESCROW_LOCKED
+  PAYMENT_PENDING
+  PAYMENT_SENT
+  SELLER_CONFIRMATION_PENDING
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  DISPUTED
+  UNDER_REVIEW
+  RESOLVED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+model User {
+  id             String             @id @default(cuid())
+  email          String             @unique
+  phone          String?            @unique
+  passwordHash   String
+  role           UserRole           @default(USER)
+  status         UserStatus         @default(ACTIVE)
+  kycStatus      KycStatus          @default(NOT_STARTED)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  profile        UserProfile?
+  wallets        Wallet[]
+  sessions       Session[]
+  advertisements P2PAdvertisement[]
+  p2pOrders      P2POrder[]         @relation("P2PBuyer")
+  vendorOrders   P2POrder[]         @relation("P2PSeller")
+  orders         Order[]
+  auditLogs      AuditLog[]
+}
+
+model UserProfile {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  fullName String?
+  country  String?
+  timezone String?
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Asset {
+  id           String         @id @default(cuid())
+  symbol       String         @unique
+  name         String
+  type         String
+  decimals     Int            @default(8)
+  enabled      Boolean        @default(true)
+  networks     AssetNetwork[]
+  wallets      Wallet[]
+  tradingPairs TradingPair[]  @relation("BaseAsset")
+  quotePairs   TradingPair[]  @relation("QuoteAsset")
+}
+
+model Network {
+  id      String         @id @default(cuid())
+  name    String
+  code    String         @unique
+  enabled Boolean        @default(true)
+  assets  AssetNetwork[]
+}
+
+model AssetNetwork {
+  id                String  @id @default(cuid())
+  assetId           String
+  networkId         String
+  depositEnabled    Boolean @default(true)
+  withdrawalEnabled Boolean @default(true)
+  asset             Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  network           Network @relation(fields: [networkId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, networkId])
+}
+
+model FiatCurrency {
+  id      String  @id @default(cuid())
+  code    String  @unique
+  name    String
+  symbol  String
+  enabled Boolean @default(true)
+}
+
+model TradingPair {
+  id           String  @id @default(cuid())
+  symbol       String  @unique
+  baseAssetId  String
+  quoteAssetId String
+  enabled      Boolean @default(true)
+  makerFee     Decimal @db.Decimal(20, 10)
+  takerFee     Decimal @db.Decimal(20, 10)
+  minQuantity  Decimal @db.Decimal(30, 12)
+  baseAsset    Asset   @relation("BaseAsset", fields: [baseAssetId], references: [id])
+  quoteAsset   Asset   @relation("QuoteAsset", fields: [quoteAssetId], references: [id])
+  orders       Order[]
+}
+
+model Wallet {
+  id            String        @id @default(cuid())
+  userId        String
+  assetId       String
+  available     Decimal       @default(0) @db.Decimal(40, 18)
+  locked        Decimal       @default(0) @db.Decimal(40, 18)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset         Asset         @relation(fields: [assetId], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@unique([userId, assetId])
+}
+
+model LedgerEntry {
+  id            String          @id @default(cuid())
+  walletId      String
+  direction     LedgerDirection
+  amount        Decimal         @db.Decimal(40, 18)
+  referenceType String
+  referenceId   String
+  createdAt     DateTime        @default(now())
+  wallet        Wallet          @relation(fields: [walletId], references: [id])
+
+  @@index([referenceType, referenceId])
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  userId         String
+  pairId         String
+  side           OrderSide
+  type           OrderType
+  price          Decimal?    @db.Decimal(40, 18)
+  quantity       Decimal     @db.Decimal(40, 18)
+  filledQuantity Decimal     @default(0) @db.Decimal(40, 18)
+  status         OrderStatus @default(OPEN)
+  createdAt      DateTime    @default(now())
+  user           User        @relation(fields: [userId], references: [id])
+  pair           TradingPair @relation(fields: [pairId], references: [id])
+  fills          OrderFill[]
+
+  @@index([pairId, status])
+}
+
+model OrderFill {
+  id        String   @id @default(cuid())
+  orderId   String
+  quantity  Decimal  @db.Decimal(40, 18)
+  price     Decimal  @db.Decimal(40, 18)
+  fee       Decimal  @db.Decimal(40, 18)
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model P2PAdvertisement {
+  id            String     @id @default(cuid())
+  vendorId      String
+  assetSymbol   String
+  fiatCode      String
+  side          OrderSide
+  price         Decimal    @db.Decimal(40, 18)
+  available     Decimal    @db.Decimal(40, 18)
+  minOrder      Decimal    @db.Decimal(40, 18)
+  maxOrder      Decimal    @db.Decimal(40, 18)
+  paymentMethod String
+  terms         String?
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  vendor        User       @relation(fields: [vendorId], references: [id])
+  orders        P2POrder[]
+}
+
+model P2POrder {
+  id              String           @id @default(cuid())
+  advertisementId String
+  buyerId         String
+  sellerId        String
+  assetSymbol     String
+  fiatCode        String
+  cryptoAmount    Decimal          @db.Decimal(40, 18)
+  fiatAmount      Decimal          @db.Decimal(40, 18)
+  status          P2PStatus        @default(CREATED)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  advertisement   P2PAdvertisement @relation(fields: [advertisementId], references: [id])
+  buyer           User             @relation("P2PBuyer", fields: [buyerId], references: [id])
+  seller          User             @relation("P2PSeller", fields: [sellerId], references: [id])
+  escrow          Escrow?
+  messages        P2PMessage[]
+  dispute         Dispute?
+}
+
+model Escrow {
+  id          String    @id @default(cuid())
+  p2pOrderId  String    @unique
+  assetSymbol String
+  amount      Decimal   @db.Decimal(40, 18)
+  lockedAt    DateTime  @default(now())
+  releasedAt  DateTime?
+  p2pOrder    P2POrder  @relation(fields: [p2pOrderId], references: [id], onDelete: Cascade)
+}
+
+model P2PMessage {
+  id        String   @id @default(cuid())
+  orderId   String
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+  order     P2POrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id         String    @id @default(cuid())
+  orderId    String    @unique
+  openedBy   String
+  reason     String
+  resolution String?
+  resolvedBy String?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  order      P2POrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  beforeJson Json?
+  afterJson  Json?
+  reason     String?
+  ip         String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

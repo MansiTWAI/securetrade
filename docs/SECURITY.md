@@ -1,0 +1,11 @@
+# Security model
+- Argon2id/bcrypt password hashing.
+- Short-lived JWT access tokens.
+- RBAC on server-side routes.
+- Helmet/security headers.
+- Database transactions for escrow state transitions.
+- Immutable audit records for sensitive operations.
+- Double-entry ledger schema.
+- No private keys in the application database or client.
+- Production custody must use a dedicated KMS/HSM/custody provider.
+- Add WAF, rate limiting, secrets manager, dependency scanning, SAST/DAST and independent penetration testing before launch.
