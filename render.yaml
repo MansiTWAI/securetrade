@@ -23,6 +23,11 @@ services:
         value: 15m
       - key: CORS_ORIGIN
         sync: false
+      # Seeded on start (see src/seed.ts). Reveal the generated password in the Render dashboard.
+      - key: ADMIN_EMAIL
+        value: admin@securetrade.local
+      - key: ADMIN_PASSWORD
+        generateValue: true
 
 databases:
   - name: securetrade-db
