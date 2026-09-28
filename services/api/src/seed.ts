@@ -52,15 +52,23 @@ async function main() {
 
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
-  if (email && password) {
-    if (password.length < 12) throw new Error('ADMIN_PASSWORD must be at least 12 characters');
+  if (email && password && password.length < 8) {
+    // Never block API startup over this; just skip the admin bootstrap.
+    console.error('Seed: ADMIN_PASSWORD must be at least 8 characters, skipping admin account');
+  } else if (email && password) {
+    if (password.length < 12) console.warn('Seed: WARNING ADMIN_PASSWORD is shorter than 12 characters; use a longer password in production');
+    // ADMIN_EMAIL / ADMIN_PASSWORD are the source of truth for the bootstrap admin account.
     const existing = await prisma.user.findUnique({ where:{ email } });
     if (!existing) {
       await prisma.user.create({ data:{ email, role:UserRole.SUPER_ADMIN, passwordHash:await bcrypt.hash(password,12), profile:{ create:{ fullName:'Platform Admin' } } } });
       console.log(`Seed: created SUPER_ADMIN ${email}`);
-    } else if (existing.role !== UserRole.SUPER_ADMIN) {
-      await prisma.user.update({ where:{ id:existing.id }, data:{ role:UserRole.SUPER_ADMIN } });
-      console.log(`Seed: promoted ${email} to SUPER_ADMIN`);
+    } else {
+      const passwordChanged = !(await bcrypt.compare(password, existing.passwordHash));
+      if (passwordChanged || existing.role !== UserRole.SUPER_ADMIN || existing.status !== 'ACTIVE') {
+        await prisma.user.update({ where:{ id:existing.id }, data:{ role:UserRole.SUPER_ADMIN, status:'ACTIVE', ...(passwordChanged && { passwordHash:await bcrypt.hash(password,12) }) } });
+        if (passwordChanged) await prisma.session.deleteMany({ where:{ userId:existing.id } });
+        console.log(`Seed: updated SUPER_ADMIN ${email}${passwordChanged ? ' (password reset from ADMIN_PASSWORD)' : ''}`);
+      }
     }
   } else {
     console.log('Seed: ADMIN_EMAIL/ADMIN_PASSWORD not set, skipping admin account');

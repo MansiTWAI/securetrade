@@ -25,7 +25,7 @@ services:
         sync: false
       # Seeded on start (see src/seed.ts). Reveal the generated password in the Render dashboard.
       - key: ADMIN_EMAIL
-        value: admin@securetrade.local
+        value: admin@gmail.com
       - key: ADMIN_PASSWORD
         generateValue: true
 

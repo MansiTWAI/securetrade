@@ -46,7 +46,7 @@ Each web app is a Vite React TypeScript app: `npm install && npm run dev`. They 
 2. Enter `CORS_ORIGIN` when prompted (comma-separated frontend URLs; leave empty to allow all).
 3. Apply. `DATABASE_URL`, `JWT_SECRET` and `ADMIN_PASSWORD` are wired/generated automatically. Migrations run during each build; the seed runs on each start.
 
-Admin login: `ADMIN_EMAIL` from `render.yaml`, password from the service's **Environment** tab in Render.
+Admin login: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from the service's **Environment** tab in Render. Changing either and redeploying updates the admin account (the seed treats them as the source of truth).
 
 ## Deploy the web apps on Vercel
 Create one Vercel project per app (framework preset: Vite), setting **Root Directory** to `apps/user-web`, `apps/vendor-panel` or `apps/admin-panel`.
