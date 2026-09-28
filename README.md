@@ -19,17 +19,16 @@ Each web app is a Vite React TypeScript app. Install dependencies in the app and
 ## Flutter
 `cd apps/mobile && flutter pub get && flutter run`
 
-## Deploy on Vercel
-Create one Vercel project per folder, setting **Root Directory** accordingly:
+## Deploy the API on Render
+`render.yaml` is a Render Blueprint that creates the API web service and a Postgres database.
+1. Render dashboard → **New → Blueprint** → select this repo.
+2. Enter `CORS_ORIGIN` when prompted (comma-separated frontend URLs; leave empty to allow all).
+3. Apply. `DATABASE_URL` and `JWT_SECRET` are wired/generated automatically; migrations run during each build.
 
-| Project | Root Directory | Framework preset |
-|---|---|---|
-| API | `services/api` | Express |
-| User web | `apps/user-web` | Vite |
-| Vendor panel | `apps/vendor-panel` | Vite |
-| Admin panel | `apps/admin-panel` | Vite |
+Health check: `https://<service>.onrender.com/health`
 
-API environment variables: `DATABASE_URL` (hosted Postgres, e.g. Neon/Supabase), `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN` (comma-separated frontend URLs). The API's `vercel-build` script runs `prisma migrate deploy` on each deploy.
+## Deploy the web apps on Vercel
+Create one Vercel project per app (framework preset: Vite), setting **Root Directory** to `apps/user-web`, `apps/vendor-panel` or `apps/admin-panel`.
 
 ## Production checklist
 - Use a managed secret/KMS service.

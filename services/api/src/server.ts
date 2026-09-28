@@ -9,10 +9,13 @@ import { PrismaClient, UserRole, UserStatus, OrderSide, OrderType, P2PStatus, Le
 
 const prisma = new PrismaClient();
 const app = express();
+app.set('trust proxy', 1); // behind Render/Vercel proxy: use real client IP for audit logs
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true, credentials: true }));
+const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(o=>o.trim()).filter(Boolean);
+app.use(cors({ origin: corsOrigins?.length ? corsOrigins : true, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) throw new Error('JWT_SECRET must be set in production');
 const JWT_SECRET = process.env.JWT_SECRET ?? 'development-only-change-me';
 const sign = (user: {id:string; role:UserRole}) => jwt.sign({ sub:user.id, role:user.role }, JWT_SECRET, { expiresIn: (process.env.JWT_EXPIRES_IN ?? '15m') as jwt.SignOptions['expiresIn'] });
 
